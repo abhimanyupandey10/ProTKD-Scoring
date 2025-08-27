@@ -1,0 +1,506 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>Login · Semi-Sensor Operator</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <link href="/static/css/style.css" rel="stylesheet">
+  <script defer src="/static/js/operator_login.js"></script>
+</head>
+<body class="dark">
+  <style>
+    /* static/css/style.css
+   Dark, modern, glass-morphism theme for TaekSense operator login.
+   Matches HTML classes/IDs in the provided login page:
+   - body.dark
+   - .app-intro .logo-anim .logo-part .glow
+   - .container.card.fade-in
+   - form.grid.two-col.gap
+   - .section, .row.two
+   - #machine_code, #copy_code, #match_pw_input
+   - .btn, .btn.primary, .small, .note, .help
+*/
+
+/* ---------------------------
+   Theme variables
+   --------------------------- */
+:root{
+  /* colors */
+  --bg-0: #03060a;            /* page base */
+  --bg-1: #071021;            /* mid */
+  --card-bg: rgba(255,255,255,0.03);
+  --glass: rgba(255,255,255,0.04);
+  --glass-2: rgba(255,255,255,0.02);
+  --muted: #9fb0bf;
+  --subtle: rgba(255,255,255,0.04);
+  --accent: #21a0ff;         /* bright blue */
+  --accent-2: #6ee7b7;       /* teal highlight */
+  --accent-warm: #ffd166;    /* warm gold */
+  --danger: #ff6b6b;
+  --success: #22c55e;
+  --glass-border: rgba(255,255,255,0.06);
+
+  /* typography */
+  --font-sans: Inter, ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial;
+  --radius: 12px;
+  --radius-sm: 8px;
+  --elev-1: 0 6px 30px rgba(2,6,23,0.55), inset 0 1px 0 rgba(255,255,255,0.02);
+  --transition-fast: 160ms cubic-bezier(.2,.9,.2,1);
+  --transition: 260ms cubic-bezier(.2,.9,.2,1);
+  --max-width: 980px;
+}
+
+/* ---------------------------
+   Base layout & background
+   --------------------------- */
+*{box-sizing:border-box;-webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale}
+html,body{height:100%;margin:0}
+body.dark{
+  font-family:var(--font-sans);
+  background:
+    radial-gradient(1200px 600px at 10% 10%, rgba(33,160,255,0.04), transparent 8%),
+    radial-gradient(900px 500px at 90% 80%, rgba(110,231,183,0.02), transparent 8%),
+    linear-gradient(180deg, var(--bg-0) 0%, var(--bg-1) 100%);
+  color:#e6f0f6;
+  min-height:100%;
+  padding:36px 20px;
+  display:flex;
+  align-items:flex-start;
+  justify-content:center;
+  gap:24px;
+  -webkit-tap-highlight-color: transparent;
+  background-attachment: fixed;
+}
+
+/* subtle animated particles (decorative) */
+body.dark::before{
+  content:"";
+  position:fixed; inset: -20% -10% auto -10%;
+  height:60vh; width:160%;
+  background: radial-gradient(closest-side, rgba(255,255,255,0.012), transparent 40%);
+  transform: rotate(-6deg) translateY(-8%);
+  filter: blur(30px);
+  pointer-events:none;
+  z-index:0;
+  mix-blend-mode:overlay;
+}
+
+/* ---------------------------
+   Intro / Logo animation
+   --------------------------- */
+.app-intro{
+  margin-top:8vh;
+  width:340px;
+  max-width:38vw;
+  min-width:280px;
+  z-index:10;
+  pointer-events:none;
+  user-select:none;
+}
+.logo-anim{
+  display:flex;
+  align-items:center;
+  gap:8px;
+  height:120px;
+  justify-content:center;
+  transform-origin:center;
+  animation: floaty 6s ease-in-out infinite;
+}
+.logo-part{
+  display:inline-block;
+  font-weight:800;
+  letter-spacing:0.02em;
+  font-size:32px;
+  padding:8px 14px;
+  border-radius:10px;
+  background: linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01));
+  box-shadow: var(--elev-1);
+  border: 1px solid rgba(255,255,255,0.02);
+  color: linear-gradient(90deg, #fff, #ddd);
+  color: #d8eeff;
+  text-shadow: 0 4px 18px rgba(2,10,40,0.55);
+  transform: translateY(0);
+  transition: transform var(--transition), box-shadow var(--transition);
+}
+.logo-part.glow{
+  background: linear-gradient(180deg, rgba(34,144,255,0.14), rgba(34,144,255,0.06));
+  color: #ffffff;
+  text-shadow: 0 6px 30px rgba(33,160,255,0.28);
+  box-shadow: 0 12px 40px rgba(33,160,255,0.12), inset 0 -1px 0 rgba(255,255,255,0.03);
+  letter-spacing:0.04em;
+  font-size:36px;
+}
+@keyframes floaty{
+  0%{ transform: translateY(0) }
+  50%{ transform: translateY(-8px) rotate(-0.4deg) }
+  100%{ transform: translateY(0) }
+}
+.logo-part:hover{ transform: translateY(-4px) scale(1.02) }
+
+/* ---------------------------
+   Card / container
+   --------------------------- */
+.container{
+  max-width: var(--max-width);
+  width: min(840px, 96vw);
+  z-index:11;
+}
+.card{
+  background: linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01));
+  border-radius: calc(var(--radius) + 4px);
+  padding: 22px;
+  box-shadow: var(--elev-1);
+  border: 1px solid var(--glass-border);
+  backdrop-filter: blur(8px) saturate(120%);
+  -webkit-backdrop-filter: blur(8px) saturate(120%);
+  overflow: hidden;
+  position: relative;
+}
+/* soft entrance */
+.fade-in{ animation: fadeUp 420ms cubic-bezier(.2,.9,.2,1) both; }
+@keyframes fadeUp{
+  from{ transform: translateY(8px); opacity: 0 }
+  to{ transform: translateY(0); opacity: 1 }
+}
+
+/* header */
+.container h1{
+  font-size:20px;
+  margin:0 0 10px;
+  letter-spacing:0.02em;
+  color:#f2fbff;
+}
+.section h2{
+  margin:0 0 8px;
+  font-size:14px;
+  color:var(--muted);
+  text-transform:uppercase;
+  letter-spacing:0.09em;
+}
+
+/* ---------------------------
+   Grid + form layout
+   --------------------------- */
+form.grid{ display:grid; gap:18px; align-items:start; }
+form.grid.two-col{ grid-template-columns: 1fr 420px; }
+form.grid.gap{ gap:20px; }
+
+/* make grid single column on small screens */
+@media (max-width:900px){
+  form.grid.two-col{ grid-template-columns: 1fr; }
+  .app-intro{ display:none; } /* hide big logo on small screens to focus form */
+  .container{ width:100%; padding: 14px; }
+}
+
+/* sections */
+.section{
+  background: linear-gradient(180deg, rgba(255,255,255,0.012), transparent);
+  border-radius: var(--radius-sm);
+  padding: 14px;
+  border: 1px solid rgba(255,255,255,0.02);
+  box-shadow: 0 6px 18px rgba(3,9,18,0.45);
+}
+
+/* form labels and inputs */
+label{ display:block; font-size:13px; color:var(--muted); margin-bottom:8px; }
+label input[type="text"],
+label input[type="password"],
+label input[type="number"],
+input[type="text"],
+input[type="password"],
+input[type="number"]{
+  width:100%;
+  display:block;
+  background: linear-gradient(180deg, rgba(255,255,255,0.015), rgba(255,255,255,0.01));
+  border: 1px solid rgba(255,255,255,0.03);
+  padding: 11px 12px;
+  border-radius: 10px;
+  color: #eaf6ff;
+  outline: none;
+  font-size:15px;
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.01);
+  transition: box-shadow var(--transition), transform var(--transition), border-color var(--transition);
+}
+input::placeholder{ color: rgba(255,255,255,0.16); }
+
+/* focus states (keyboard-friendly) */
+input:focus, textarea:focus {
+  border-color: rgba(33,160,255,0.9);
+  box-shadow: 0 6px 30px rgba(33,160,255,0.06);
+  transform: translateY(-1px);
+}
+
+/* number input spinner removal for aesthetic */
+input[type=number]::-webkit-outer-spin-button,
+input[type=number]::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+
+/* row utilities */
+.row{ display:flex; gap:10px; align-items:center; }
+.row.two{ gap:12px; }
+.row.two label{ flex:1; }
+
+/* small text & notes */
+.small{ font-size:13px; color:var(--muted); }
+.note{ margin-top:10px; font-size:13px; color: var(--muted); }
+
+/* ---------------------------
+   Copy Row (machine code) styling
+   --------------------------- */
+.copy-row{
+  display:flex;
+  gap:10px;
+  align-items:center;
+}
+.copy-row input[readonly]{
+  background: linear-gradient(90deg, rgba(255,255,255,0.01), rgba(255,255,255,0.02));
+  border-radius: 10px;
+  padding: 10px 12px;
+  font-weight:700;
+  letter-spacing:0.08em;
+  color: #dff4ff;
+  transition: transform var(--transition), box-shadow var(--transition);
+  flex:1;
+}
+.copy-row button.btn{
+  flex: 0 0 auto;
+  min-width: 84px;
+}
+
+/* ---------------------------
+   Buttons
+   --------------------------- */
+.btn{
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  gap:8px;
+  padding:10px 14px;
+  border-radius: 10px;
+  font-weight:700;
+  cursor:pointer;
+  border: 1px solid rgba(255,255,255,0.03);
+  background: linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.008));
+  color: #dff4ff;
+  transition: transform var(--transition-fast), box-shadow var(--transition), background var(--transition);
+  box-shadow: 0 4px 18px rgba(2,8,20,0.55);
+  text-decoration:none;
+}
+.btn:active{ transform: translateY(1px) scale(.995) }
+
+/* primary button (accent) */
+.btn.primary, .btn.primary:hover {
+  color: #06202a;
+  background: linear-gradient(180deg, var(--accent), #0b6fff);
+  border: 1px solid rgba(255,255,255,0.06);
+  box-shadow: 0 10px 34px rgba(11,111,255,0.18);
+}
+.btn.primary:focus{ outline: 3px solid rgba(33,160,255,0.12); border-radius:10px; }
+
+/* minimal ghost */
+.btn.ghost{
+  background: transparent;
+  color: var(--muted);
+  border: 1px dashed rgba(255,255,255,0.03);
+}
+
+/* copy button micro interactions */
+#copy_code{
+  position:relative;
+  overflow:visible;
+}
+#copy_code:after{
+  content: "Copy";
+  display:block;
+  opacity:0;
+  font-size:11px;
+  position:absolute;
+  right: -6px;
+  top: -28px;
+  transform: translateY(4px);
+  background: rgba(0,0,0,0.35);
+  padding:4px 8px;
+  border-radius:6px;
+  color:var(--muted);
+  transition: all 220ms ease;
+}
+#copy_code:hover:after{ opacity:1; transform: translateY(0); }
+
+/* ---------------------------
+   Micro-interactions & form hints
+   --------------------------- */
+label .muted, .help{ color: var(--muted); font-size:13px; }
+
+.help{
+  margin-top:10px;
+  color:var(--muted);
+  font-size:13px;
+  display:block;
+}
+.help a{
+  color: var(--accent-2);
+  text-decoration: none;
+  border-bottom: 1px dashed rgba(110,231,183,0.16);
+  padding-bottom:1px;
+}
+.help a:hover{ color: #8ef3c4; }
+
+/* subtle divider lines */
+.section + .section { margin-top: 10px; }
+
+/* ---------------------------
+   Accessibility helpers
+   --------------------------- */
+button:focus, input:focus {
+  outline: none;
+  box-shadow: 0 8px 36px rgba(11,111,255,0.08);
+}
+:focus-visible{ outline: 3px solid rgba(33,160,255,0.10); border-radius:8px; }
+
+/* ---------------------------
+   Fancy footer / watermark
+   --------------------------- */
+.container .watermark{
+  position:absolute; right:14px; bottom:14px;
+  font-size:12px; color: rgba(255,255,255,0.03);
+  transform: rotate(-12deg) translateY(2px);
+}
+
+/* ---------------------------
+   Mobile tweaks
+   --------------------------- */
+@media (max-width:520px){
+  .container.card{ padding:14px; border-radius:12px; }
+  .logo-anim{ height:86px; margin-bottom:8px; }
+  .logo-part{ font-size:20px; padding:6px 10px; }
+  .logo-part.glow{ font-size:22px; }
+  .copy-row input[readonly]{ font-size:14px; }
+  .btn{ font-size:14px; padding:10px 12px; }
+}
+
+/* ---------------------------
+   Extra polished flourishes
+   --------------------------- */
+/* animated gradient underline for headings */
+.container h1{
+  position:relative;
+  padding-bottom:10px;
+}
+.container h1::after{
+  content:"";
+  position:absolute;
+  left:0; bottom:0;
+  height:4px;
+  width:60px;
+  border-radius:6px;
+  background: linear-gradient(90deg, rgba(34,160,255,0.9), rgba(110,231,183,0.85));
+  box-shadow: 0 6px 28px rgba(34,160,255,0.08);
+  transform: translateY(6px);
+  transition: transform 340ms cubic-bezier(.2,.9,.2,1);
+}
+.container:hover h1::after{ transform: translateY(0); }
+
+/* soft frosted edge under card */
+.card::after{
+  content:"";
+  position:absolute;
+  left:0; right:0; bottom:-26px;
+  height:64px;
+  background: linear-gradient(180deg, rgba(2,6,17,0.0), rgba(2,6,17,0.45));
+  filter: blur(18px);
+  pointer-events:none;
+  z-index:-1;
+}
+
+/* subtle animated sparkles near logo (pure css) */
+.logo-anim::before, .logo-anim::after{
+  content:"";
+  position:absolute;
+  width:14px; height:14px;
+  background: radial-gradient(circle at 30% 30%, rgba(255,255,255,0.9), rgba(255,255,255,0.05) 40%);
+  border-radius:50%;
+  transform-origin:center;
+  opacity:0.06;
+  filter: blur(6px);
+}
+.logo-anim::before{ left: -18px; top: -6px; transform: rotate(-6deg); animation: twinkle 5.2s linear infinite; }
+.logo-anim::after{ right: -22px; bottom: 2px; transform: rotate(12deg); animation: twinkle 4.6s linear infinite; }
+@keyframes twinkle{
+  0%{ opacity:0.06; transform: scale(.9) }
+  50%{ opacity:0.18; transform: scale(1.4) }
+  100%{ opacity:0.06; transform: scale(.9) }
+}
+
+/* high contrast mode (prefers-contrast) */
+@media (prefers-contrast: more){
+  .card{ border-color: rgba(255,255,255,0.06); box-shadow: 0 10px 40px rgba(0,0,0,0.6) }
+  input, .btn{ border-color: rgba(255,255,255,0.08); }
+}
+
+/* print safe */
+@media print{
+  body{ background: #fff; color:#000 }
+  .card{ background:#fff; box-shadow:none; border: none }
+}
+
+  </style>
+  <div class="app-intro">
+    <div class="logo-anim">
+      <span class="logo-part">TAEK</span><span class="logo-part glow">SENSE</span>
+    </div>
+  </div>
+
+  <div class="container card fade-in">
+    <h1>Operator Login / Session Setup</h1>
+
+    <form action="/operator/login_create" method="POST" class="grid two-col gap">
+      <div class="section">
+        <h2>Match Config</h2>
+        <label>Number of Referees
+          <input type="number" name="num_refs" min="1" max="6" value="3" required>
+        </label>
+        <label>Round Time (seconds)
+          <input type="number" name="round_time" min="30" max="600" value="120" required>
+        </label>
+        <label>Break Time (seconds)
+          <input type="number" name="break_time" min="10" max="300" value="60" required>
+        </label>
+        <label>Category (optional)
+          <input type="text" name="category" placeholder="Senior M -68kg">
+        </label>
+        <div class="row two">
+          <label>RED Name
+            <input type="text" name="red" value="RED">
+          </label>
+          <label>BLUE Name
+            <input type="text" name="blue" value="BLUE">
+          </label>
+        </div>
+      </div>
+
+      <div class="section">
+        <h2>Machine & Password</h2>
+        <label>Machine Code
+          <div class="copy-row">
+            <input type="text" id="machine_code" value="{{ code }}" readonly>
+            <button type="button" id="copy_code" class="btn">Copy</button>
+          </div>
+        </label>
+        <label>Match Password (auto-saves when typed)
+          <input type="text" id="match_pw_input" name="match_password" value="fighters123">
+        </label>
+        <div class="note">Share <b>Machine Code</b> + <b>Match Password</b> with referees to connect.</div>
+
+        <h2>Unlock</h2>
+        <label>Enter Master Password to proceed
+          <input type="password" name="master" placeholder="fighters123" required>
+        </label>
+        <button class="btn primary">Go to Setup</button>
+      </div>
+    </form>
+
+    <div class="help small">
+      You can test connections using the temporary <a href="/referee">Referee Stub</a> page (mobile).
+    </div>
+  </div>
+</body>
+</html>

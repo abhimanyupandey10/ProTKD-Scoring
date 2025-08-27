@@ -1,0 +1,335 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>Main · Semi-Sensor Operator</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <!-- If you keep a global stylesheet, leave this line. Inline CSS below overrides/enhances it. -->
+  <link href="/static/css/style.css" rel="stylesheet">
+  <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
+  <script>
+    window.MACHINE_CODE = "{{ code }}";
+  </script>
+  <script defer src="/static/js/operator_main.js"></script>
+  <style>
+/* =========================================================
+   Ultra Dark Operator UI — polished for clarity & speed
+   - Names visible
+   - Quorum HUD for majority scoring
+   - Better timer states & overlays
+   - Responsive, animated, accessible
+   ========================================================= */
+
+/* -------- Theme -------- */
+:root{
+  --bg-900:#06070a; --bg-800:#0b0f12;
+  --text:#eef5ff; --muted:#93a0ac; --muted-2:#7f8b96;
+  --panel:linear-gradient(180deg,rgba(255,255,255,.02),rgba(255,255,255,.01));
+  --glass:#ffffff06; --glass-2:#ffffff0a; --glass-border:#ffffff0f;
+  --red:#ff5d6c; --blue:#5cb3ff; --yellow:#ffd166; --green:#22c55e;
+  --shadow:0 22px 60px rgba(0,0,0,.55);
+  --radius-lg:16px; --radius-md:12px;
+  --mono: ui-monospace, SFMono-Regular, Menlo, Monaco, "Roboto Mono", "Courier New", monospace;
+  --ui: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial;
+  --ease: cubic-bezier(.2,.9,.25,1);
+}
+
+/* Base */
+*{box-sizing:border-box}
+html,body{height:100%;margin:0}
+body{font-family:var(--ui);color:var(--text);background:
+  radial-gradient(900px 400px at 10% 10%, rgba(92,179,255,.05), transparent 12%),
+  radial-gradient(900px 400px at 90% 90%, rgba(255,93,108,.04), transparent 16%),
+  linear-gradient(180deg,var(--bg-900),var(--bg-800));}
+
+/* Containers */
+.container{max-width:1240px;margin:22px auto;padding:18px}
+.card{background:var(--panel);border:1px solid var(--glass-border);border-radius:var(--radius-lg);box-shadow:var(--shadow)}
+.card.wide{padding:18px}
+
+/* Topbar */
+.topbar{display:grid;grid-template-columns:220px 1fr auto;gap:14px;align-items:center}
+.subtle{font-size:12px;color:var(--muted);letter-spacing:.06em}
+.mono{font-family:var(--mono)}
+.big{font-size:22px;font-weight:800}
+.code-chip{display:inline-flex;align-items:center;gap:8px;padding:8px 12px;border-radius:12px;background:linear-gradient(180deg,#1a2431,#121a24);border:1px solid #ffffff12}
+.code-dot{width:8px;height:8px;border-radius:50%;background:linear-gradient(180deg,#9ad0ff,#5cb3ff);box-shadow:0 0 8px #5cb3ff66}
+.category{width:100%;max-width:460px;padding:10px 12px;border-radius:12px;background:transparent;border:1px solid #ffffff14;color:var(--text);outline:none}
+.category::placeholder{color:var(--muted)}
+.topbar .right{display:flex;gap:10px}
+.btn{display:inline-flex;align-items:center;justify-content:center;padding:10px 14px;border-radius:12px;border:1px solid #ffffff12;background:#ffffff08;color:var(--text);cursor:pointer;transition:all .18s var(--ease)}
+.btn:hover{transform:translateY(-2px);box-shadow:0 14px 32px rgba(0,0,0,.5)}
+.btn.ghost{background:transparent;color:var(--muted)}
+.btn-danger{background:linear-gradient(180deg,#ff7d88,#e14b58);color:#1a0c0e}
+.btn-success{background:linear-gradient(180deg,#3ee58c,#1bb368);color:#00150a}
+
+/* Ring Layout */
+.ring{display:grid;grid-template-columns:1fr 360px 1fr;gap:18px;margin-top:14px}
+.corner{position:relative;display:flex;flex-direction:column;gap:8px;padding:14px;border-radius:16px;background:linear-gradient(180deg,#ffffff06,#ffffff03);border:1px solid #ffffff0f}
+.corner.red{border-left:4px solid #ff5d6c33;box-shadow:0 6px 26px #ff5d6c1f}
+.corner.blue{border-right:4px solid #5cb3ff2b;box-shadow:0 6px 26px #5cb3ff1f}
+
+/* Fighter header (name + chip) */
+.fighter-row{display:flex;align-items:center;justify-content:space-between;gap:10px}
+.name-badge{font-weight:900;letter-spacing:.02em}
+.name-badge.red{color:#ffd8dc}
+.name-badge.blue{color:#d9eeff}
+.name-chip{font-size:12px;color:var(--muted);padding:3px 8px;border-radius:999px;border:1px solid #ffffff14;background:#ffffff08}
+
+/* Score block */
+.score{font-family:var(--mono);font-weight:900;font-size:64px;line-height:1;letter-spacing:.02em}
+@media (max-width:520px){ .score{font-size:48px} }
+.small-row{display:flex;justify-content:space-between;color:var(--muted);font-size:13px;margin-top:-4px}
+
+/* Round lights */
+.round-lights{display:flex;gap:8px;margin-top:8px}
+.dot{width:16px;height:16px;border-radius:50%;background:#ffffff0b;border:1px solid #ffffff14;box-shadow:inset 0 -3px 6px rgba(0,0,0,.5)}
+.dot.on.red{background:linear-gradient(180deg,#ffd2d7,#ff5d6c);box-shadow:0 0 18px #ff5d6c55}
+.dot.on.blue{background:linear-gradient(180deg,#d2ebff,#5cb3ff);box-shadow:0 0 18px #5cb3ff55}
+
+/* Replay badge */
+.replay{display:flex;align-items:center;gap:8px;margin-top:6px}
+.card-icon{width:36px;height:36px;border-radius:10px;background:#ffffff0a;border:1px solid #ffffff12}
+.card-icon.on.red{background:linear-gradient(180deg,#ffdfe1,#ff8a94)}
+.card-icon.on.blue{background:linear-gradient(180deg,#e6f4ff,#7ec4ff)}
+
+/* Ops buttons */
+.ops{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-top:10px}
+.ops .btn{padding:10px 10px}
+.corner.red .ops .btn[data-act="adj"]{background:#ff5d6c12}
+.corner.blue .ops .btn[data-act="adj"]{background:#5cb3ff12}
+
+/* Center box (timer + quorum HUD) */
+.centerbox{position:relative;display:flex;flex-direction:column;align-items:center;gap:12px;padding:14px;border-radius:16px;background:
+  radial-gradient(500px 220px at 50% 20%, rgba(92,179,255,.06), transparent 12%),
+  linear-gradient(180deg,#ffffff08,#ffffff03);border:1px solid #ffffff10}
+.round{font-size:14px;color:var(--muted)}
+.timer{position:relative;font-family:var(--mono);font-weight:900;font-size:54px;padding:8px 16px;min-width:170px;text-align:center;border-radius:12px;background:linear-gradient(180deg,#ffffff08,#ffffff03);border:1px solid #ffffff10}
+.state{font-size:13px;color:var(--muted)}
+.timeops{display:flex;gap:10px}
+.timeops .btn{padding:8px 14px}
+
+/* Quorum HUD */
+.quorum{margin-top:8px;width:100%;max-width:310px;border:1px dashed #ffffff18;border-radius:12px;padding:8px 10px;background:#ffffff05}
+.quorum-title{font-size:12px;color:var(--muted);display:flex;justify-content:space-between}
+.quorum-bar{position:relative;height:9px;border-radius:999px;background:#0f1620;border:1px solid #ffffff14;overflow:hidden;margin-top:6px}
+.quorum-fill{position:absolute;left:0;top:0;bottom:0;width:0;background:linear-gradient(90deg,#ffd166,#5cb3ff);transition:width .25s var(--ease)}
+.quorum-foot{display:flex;justify-content:space-between;margin-top:6px;color:var(--muted);font-size:11px}
+
+/* Referees grid */
+h2{margin:18px 0 10px;color:var(--muted-2);font-weight:700}
+.grid{display:grid}
+.grid.three-col{grid-template-columns:repeat(3,1fr)}
+.grid.gap{gap:12px}
+.ref-box{background:#ffffff07;border:1px solid #ffffff12;border-radius:14px;padding:12px;box-shadow:0 10px 26px rgba(0,0,0,.55);display:flex;flex-direction:column;gap:8px}
+.ref-top{display:flex;justify-content:space-between;align-items:center}
+.ref-name{font-weight:800}
+.lights{display:flex;gap:8px}
+.light{width:12px;height:12px;border-radius:50%;background:#ffffff0c;border:1px solid #ffffff15}
+.light.on.blue{background:linear-gradient(180deg,#cfeaff,#5cb3ff);box-shadow:0 0 14px #5cb3ff66}
+.light.on.yellow{background:linear-gradient(180deg,#fff2cc,#ffd166);box-shadow:0 0 14px #ffd16666}
+.small{font-size:12px;color:var(--muted)}
+
+/* Overlays */
+.overlay{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,.6);z-index:1000}
+.overlay.hidden{display:none}
+.overlay-card{width:min(760px,96vw);background:#111722;border:1px solid #ffffff12;border-radius:16px;padding:18px;box-shadow:0 28px 80px rgba(0,0,0,.75)}
+.overlay-title{font-size:16px;font-weight:900;color:#cfe7ff}
+.overlay-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(86px,1fr));gap:10px;margin:12px 0}
+.overlay-box{height:64px;border-radius:10px;border:1px solid #ffffff14;display:flex;align-items:center;justify-content:center;background:#ffffff08;color:var(--muted);font-weight:800}
+.overlay-box.on{background:linear-gradient(180deg,#fff3cc,#ffd166);color:#141a21;box-shadow:0 14px 30px #ffd16622}
+.overlay-box.declined{border:2px solid #ff4444;background:rgba(255,0,0,.18);box-shadow:0 0 14px #ff000055}
+.overlay .overlay-actions{display:flex;justify-content:center;gap:12px;margin-top:10px}
+#winner_name{font-family:var(--mono);font-size:18px}
+
+/* Event feed (optional, for future JS) */
+.feed{margin-top:10px;border:1px dashed #ffffff18;border-radius:14px;padding:10px;background:#ffffff05}
+.feed-title{font-size:12px;color:var(--muted)}
+.feed-list{margin:6px 0 0 0;padding:0;list-style:none;max-height:180px;overflow:auto}
+.feed-list li{font-size:12px;color:#cdd7e2;padding:6px 4px;border-bottom:1px solid #ffffff0a}
+.feed-list li:last-child{border-bottom:0}
+
+/* Animations */
+@keyframes breathe { 0%{transform:translateY(0)} 50%{transform:translateY(-2px)} 100%{transform:translateY(0)} }
+.timer.running{box-shadow:0 0 0 0 rgba(92,179,255,.12), inset 0 -6px 18px rgba(0,0,0,.55)}
+.timer.paused{opacity:.9;border-color:#ffffff1a}
+.timer.break{background:linear-gradient(180deg,#191b10,#14170d);border-color:#ffffff12}
+.dot.on.red,.card-icon.on.red{animation:pulseRed 2.6s infinite ease-out}
+.dot.on.blue,.card-icon.on.blue{animation:pulseBlue 2.6s infinite ease-out .18s}
+@keyframes pulseRed{0%{box-shadow:0 0 0 0 rgba(255,93,108,.22)}70%{box-shadow:0 0 26px 12px rgba(255,93,108,.06)}100%{box-shadow:0 0 0 0 rgba(255,93,108,0)}}
+@keyframes pulseBlue{0%{box-shadow:0 0 0 0 rgba(92,179,255,.22)}70%{box-shadow:0 0 26px 12px rgba(92,179,255,.06)}100%{box-shadow:0 0 0 0 rgba(92,179,255,0)}}
+
+/* Responsive */
+@media (max-width:1100px){ .ring{grid-template-columns:1fr 320px 1fr} }
+@media (max-width:920px){
+  .topbar{grid-template-columns:1fr;gap:10px}
+  .ring{grid-template-columns:1fr;gap:12px}
+  .centerbox{order:2} .corner{order:1} .corner.blue{order:3}
+  .grid.three-col{grid-template-columns:repeat(2,1fr)}
+}
+@media (max-width:560px){ .grid.three-col{grid-template-columns:1fr} }
+  </style>
+</head>
+<body>
+
+  <div class="container card wide">
+    <!-- Top Bar -->
+    <div class="topbar">
+      <div>
+        <div class="subtle">Machine</div>
+        <div class="code-chip">
+          <span class="code-dot"></span>
+          <span class="mono big">{{ code }}</span>
+        </div>
+      </div>
+
+      <div>
+        <input id="category_input" class="category" placeholder="Category (Kg / Age / Gender)">
+      </div>
+
+      <div class="right">
+        <a href="/operator/setup" class="btn ghost">Setup</a>
+        <button id="new_match" class="btn">New Match</button>
+      </div>
+    </div>
+
+    <!-- Ring -->
+    <div class="ring">
+      <!-- RED -->
+      <div class="corner red">
+        <div class="fighter-row">
+          <div class="name-badge red" id="name_red">RED</div>
+          <div class="name-chip">Home</div>
+        </div>
+
+        <div class="score" id="score_red">0</div>
+
+        <div class="small-row">
+          <span>Gam-jeom</span><span id="gj_red">0</span>
+        </div>
+
+        <div class="round-lights">
+          <span id="rw_red_1" class="dot"></span>
+          <span id="rw_red_2" class="dot"></span>
+          <span id="rw_red_3" class="dot"></span>
+        </div>
+
+        <div class="replay">
+          <span class="card-icon" id="ivr_red" title="Replay availability"></span>
+          <span class="small">Video Replay</span>
+        </div>
+
+        <div class="ops">
+          <button data-act="adj" data-color="red" data-delta="1" class="btn">+1</button>
+          <button data-act="adj" data-color="red" data-delta="2" class="btn">+2</button>
+          <button data-act="adj" data-color="red" data-delta="3" class="btn">+3</button>
+          <button data-act="adj" data-color="red" data-delta="-1" class="btn">−1</button>
+
+          <button data-act="undo" class="btn">Undo</button>
+          <button data-act="declare" data-color="red" class="btn btn-danger">Declare</button>
+          <button data-act="gj" data-color="red" class="btn">Gam-jeom</button>
+          <button data-act="replay" data-color="red" class="btn">Video Replay</button>
+        </div>
+      </div>
+
+      <!-- CENTER -->
+      <div class="centerbox">
+        <div class="round">Round <span id="round_no">1</span></div>
+        <div class="timer mono paused" id="timer">02:00</div>
+        <div class="state" id="state_text">Paused</div>
+
+        <div class="timeops">
+          <button data-t="start" class="btn btn-success">Start</button>
+          <button data-t="pause" class="btn">Pause</button>
+          <button data-t="reset_round" class="btn">Reset</button>
+        </div>
+
+        <!-- Quorum HUD: JS can update numbers & bar width -->
+        <div id="quorum_hud" class="quorum">
+          <div class="quorum-title">
+            <span>Majority Scoring Window</span>
+            <span class="mono">1.3s</span>
+          </div>
+          <div class="quorum-bar" aria-hidden="true">
+            <div id="quorum_fill" class="quorum-fill" style="width:0%"></div>
+          </div>
+          <div class="quorum-foot">
+            <span class="small">Needed: <span id="quorum_needed" class="mono">2</span></span>
+            <span class="small">Current: <span id="quorum_current" class="mono">0</span></span>
+          </div>
+        </div>
+
+        <!-- Optional: Event feed (hook later if you like) -->
+        <div class="feed">
+          <div class="feed-title">Recent events</div>
+          <ul id="event_feed" class="feed-list">
+            <!-- <li>[00:37] +1 BLUE (majority)</li> -->
+          </ul>
+        </div>
+      </div>
+
+      <!-- BLUE -->
+      <div class="corner blue">
+        <div class="fighter-row">
+          <div class="name-badge blue" id="name_blue">BLUE</div>
+          <div class="name-chip">Away</div>
+        </div>
+
+        <div class="score" id="score_blue">0</div>
+
+        <div class="small-row">
+          <span>Gam-jeom</span><span id="gj_blue">0</span>
+        </div>
+
+        <div class="round-lights">
+          <span id="rw_blue_1" class="dot"></span>
+          <span id="rw_blue_2" class="dot"></span>
+          <span id="rw_blue_3" class="dot"></span>
+        </div>
+
+        <div class="replay">
+          <span class="card-icon" id="ivr_blue" title="Replay availability"></span>
+          <span class="small">Video Replay</span>
+        </div>
+
+        <div class="ops">
+          <button data-act="adj" data-color="blue" data-delta="1" class="btn">+1</button>
+          <button data-act="adj" data-color="blue" data-delta="2" class="btn">+2</button>
+          <button data-act="adj" data-color="blue" data-delta="3" class="btn">+3</button>
+          <button data-act="adj" data-color="blue" data-delta="-1" class="btn">−1</button>
+
+          <button data-act="undo" class="btn">Undo</button>
+          <button data-act="declare" data-color="blue" class="btn btn-danger">Declare</button>
+          <button data-act="gj" data-color="blue" class="btn">Gam-jeom</button>
+          <button data-act="replay" data-color="blue" class="btn">Video Replay</button>
+        </div>
+      </div>
+    </div>
+
+    <h2>Referees</h2>
+    <div id="refs_list" class="grid three-col gap"></div>
+  </div>
+
+  <!-- Replay Overlay -->
+  <div id="overlay_replay" class="overlay hidden">
+    <div class="overlay-card">
+      <div class="overlay-title">Video Replay — <span id="overlay_replay_side">RED</span></div>
+      <div id="overlay_replay_boxes" class="overlay-grid"></div>
+      <div class="overlay-actions">
+        <button id="overlay_replay_close" class="btn">Close</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Winner Overlay -->
+  <div id="overlay_winner" class="overlay hidden">
+    <div class="overlay-card">
+      <div class="overlay-title">Winner: <span id="winner_name">—</span></div>
+      <div class="overlay-actions">
+        <button id="overlay_winner_close" class="btn btn-success">OK</button>
+      </div>
+    </div>
+  </div>
+
+</body>
+</html>

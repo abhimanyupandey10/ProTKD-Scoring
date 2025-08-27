@@ -1,0 +1,728 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>Referee Remote (Standalone)</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
+  <!-- Socket.IO client (unchanged) -->
+  <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
+
+  <style>
+    /* =========================
+       THEME & TOKENS
+    ========================== */
+    :root{
+      --bg: #070b10;
+      --bg-2: #0b1118;
+      --glass: rgba(255,255,255,.04);
+      --glass-2: rgba(255,255,255,.06);
+      --border: rgba(255,255,255,.08);
+      --muted: #9fb0bf;
+      --text: #e9f1f7;
+
+      --accent: #1ee27a;
+      --accent-2: #22c55e;
+      --danger: #ff6b6b;
+      --warn: #ffd166;
+
+      --blue: #3aa0ff;
+      --blue-2:#1e7fff;
+      --red:  #ff5b6b;
+      --red-2:#e64545;
+
+      --pad-red: linear-gradient(180deg,#ff6b6b,#e64545);
+      --pad-blue: linear-gradient(180deg,#4da6ff,#1e7fff);
+
+      --radius: 16px;
+      --radius-sm: 12px;
+      --shadow-s: 0 6px 18px rgba(0,0,0,.35);
+      --shadow-m: 0 12px 32px rgba(0,0,0,.45);
+      --shadow-l: 0 18px 44px rgba(0,0,0,.55);
+
+      --ring: 0 0 0 2px rgba(255,255,255,.08), 0 0 0 6px rgba(255,255,255,.04);
+      --safe-b: env(safe-area-inset-bottom);
+      --safe-t: env(safe-area-inset-top);
+      --safe-l: env(safe-area-inset-left);
+      --safe-r: env(safe-area-inset-right);
+    }
+
+    @media (prefers-color-scheme: dark){
+      :root { color-scheme: dark; }
+    }
+
+    * { box-sizing: border-box; }
+    html,body{height:100%;margin:0;background:
+      radial-gradient(1200px 800px at 10% -10%, #0e1a28 0%, transparent 60%),
+      radial-gradient(1000px 700px at 100% 0%, #0a1930 0%, transparent 55%),
+      linear-gradient(180deg,#04060a,var(--bg));
+      color:var(--text);
+      font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Inter, Arial;
+      -webkit-font-smoothing:antialiased; -moz-osx-font-smoothing:grayscale;
+    }
+
+    a { color: inherit; }
+
+    /* =========================
+       UTILS
+    ========================== */
+    .hidden{display:none!important}
+    .muted{color:var(--muted)}
+    .small{font-size:12px}
+    .big{font-size:17px;padding:14px}
+    .sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
+
+    /* =========================
+       LAYOUT WRAPPER
+    ========================== */
+    .wrap{
+      max-width:720px;
+      margin:0 auto;
+      padding: clamp(10px, 2vw, 16px);
+      padding-bottom: calc(20px + var(--safe-b));
+      min-height: 100%;
+      display: grid;
+      grid-template-rows: auto 1fr;
+      gap: 12px;
+    }
+
+    .card{
+      background: linear-gradient(180deg, var(--bg-2), #0a1017);
+      border-radius: var(--radius);
+      padding: 14px;
+      box-shadow: var(--shadow-m);
+      border: 1px solid var(--border);
+      backdrop-filter: blur(8px);
+    }
+
+    header h1{
+      margin: 0 0 8px;
+      font-size: clamp(18px, 2.4vw, 22px);
+      letter-spacing:.2px;
+      display:flex; align-items:center; gap:10px;
+    }
+    header h1::before{
+      content:"";
+      width:18px;height:18px;border-radius:50%;
+      background: radial-gradient(circle at 40% 40%, #8de3ff, #1f8cff);
+      box-shadow: 0 0 0 3px rgba(31,140,255,.15), 0 6px 20px rgba(31,140,255,.25);
+    }
+
+    /* =========================
+       STATUS BAR
+    ========================== */
+    .status-row{
+      display:flex; align-items:center; gap:12px; margin-bottom:8px;
+      background: linear-gradient(180deg, rgba(255,255,255,.03), rgba(255,255,255,.02));
+      border:1px solid var(--border);
+      padding:10px 12px;
+      border-radius: 12px;
+    }
+    .status-dot{width:12px;height:12px;border-radius:50%;background:#444;border:1px solid #6a6a6a; box-shadow: inset 0 0 0 2px rgba(0,0,0,.35);}
+    .status-text{font-weight:700;letter-spacing:.2px}
+    .lights{display:flex;gap:10px;align-items:center}
+    .light{width:14px;height:14px;border-radius:50%;background:#222;border:1px solid var(--border); box-shadow: inset 0 0 0 2px rgba(0,0,0,.35); transition: transform .2s ease, box-shadow .3s ease, filter .25s ease;}
+    .light.connected{
+      background: radial-gradient(circle at 35% 35%, #9cd1ff, #2b7cff 65%);
+      box-shadow: 0 6px 18px rgba(43,124,255,.18), 0 0 0 2px rgba(43,124,255,.25);
+    }
+    .light.activity{
+      background: radial-gradient(circle at 35% 35%, #ffe79b, #f5d94f 65%);
+      box-shadow: 0 6px 18px rgba(245,217,79,.2), 0 0 0 2px rgba(245,217,79,.25);
+      animation: ping 1.2s ease-out infinite;
+    }
+    @keyframes ping{
+      0% { filter: brightness(1); transform: scale(1); }
+      60%{ filter: brightness(1.1); transform: scale(1.05); }
+      100%{ filter: brightness(1); transform: scale(1); }
+    }
+
+    /* =========================
+       FORM
+    ========================== */
+    label{display:block;font-size:12px;color:var(--muted);margin-top:10px}
+    input[type="text"], input[type="password"]{
+      width:100%;
+      padding:12px 12px;
+      border-radius: 12px;
+      border:1px solid var(--border);
+      background: linear-gradient(180deg, rgba(255,255,255,.02), rgba(255,255,255,.01));
+      color:inherit;
+      outline:none;
+      transition: box-shadow .25s ease, border-color .2s ease, background .25s ease;
+    }
+    input::placeholder{color:#8293a3}
+    input:focus{
+      border-color: rgba(173,216,255,.55);
+      box-shadow: var(--ring);
+      background: linear-gradient(180deg, rgba(255,255,255,.03), rgba(255,255,255,.015));
+    }
+
+    .row{display:flex;gap:8px}
+    .actions{display:flex;gap:10px;margin-top:12px}
+    button{
+      padding:12px;
+      border-radius:12px;
+      border:0;
+      font-weight:800;
+      cursor:pointer;
+      font-size:16px;
+      transition: transform .06s ease, box-shadow .2s ease, filter .2s ease, background .2s ease, outline-color .2s ease;
+      will-change: transform, box-shadow, background;
+      outline: 2px solid transparent;
+    }
+    button:active{ transform: translateY(1px) scale(.995); }
+    button:focus-visible{ outline-color: rgba(255,255,255,.35); outline-offset: 2px; }
+
+    .btn-primary{background:linear-gradient(180deg,#1f8cff,#0b6fff);color:#fff; box-shadow: 0 10px 28px rgba(15,110,255,.25);}
+    .btn-ghost{background:transparent;border:1px solid var(--border);color:var(--muted)}
+    .btn-red{background:var(--pad-red);color:#fff; text-shadow:0 1px 0 rgba(0,0,0,.25); box-shadow: 0 12px 28px rgba(230,69,69,.25);}
+    .btn-blue{background:var(--pad-blue);color:#fff; text-shadow:0 1px 0 rgba(0,0,0,.25); box-shadow: 0 12px 28px rgba(30,127,255,.25);}
+    .btn-yellow{background:linear-gradient(180deg,#ffd166,#f59e0b);color:#09111a; box-shadow: 0 12px 28px rgba(245,158,11,.25);}
+    .btn-muted{background:#182026;color:var(--muted); border:1px solid var(--border);}
+
+    .hint{margin-top:10px;color:var(--muted);font-size:13px}
+
+    /* =========================
+       STICKY QUICK PAD (Thumb-first)
+    ========================== */
+    .controls{margin-top:12px}
+    .quick-pad{
+      position: sticky;
+      bottom: 0;
+      z-index: 10;
+      margin-top: 8px;
+      background: linear-gradient(180deg, rgba(7,11,16,0), rgba(7,11,16,.55) 10%, rgba(7,11,16,.85));
+      padding-top: 8px;
+      padding-bottom: calc(8px + var(--safe-b));
+      border-radius: 18px;
+      backdrop-filter: blur(8px);
+    }
+    .pad-wrap{
+      display:grid;
+      grid-template-columns: 1fr 1fr;
+      gap:10px;
+    }
+
+    .pad-col{
+      display:grid;
+      grid-template-rows: repeat(3, minmax(64px, 12vh));
+      gap:10px;
+    }
+
+    /* Huge touch targets */
+    .score-btn{
+      position: relative;
+      border-radius: 16px;
+      font-size: clamp(18px, 4.8vw, 26px);
+      padding: clamp(14px, 2.6vh, 18px);
+      letter-spacing:.2px;
+      overflow: hidden;
+      isolation: isolate;
+    }
+    .score-btn::after{
+      content:"";
+      position:absolute; inset:-2px;
+      border-radius: inherit;
+      background: radial-gradient(220px 180px at var(--mx,50%) var(--my,50%), rgba(255,255,255,.18), rgba(255,255,255,0) 45%);
+      opacity:0; transition: opacity .25s ease;
+      pointer-events:none; z-index:0;
+    }
+    .score-btn:active::after{ opacity: 1; }
+    .score-btn span{ position: relative; z-index: 1; }
+
+    /* 1-2-3 layout labels (optional) */
+    .score-btn[data-points="1"]{ filter: saturate(1.05); }
+    .score-btn[data-points="2"]{ filter: saturate(1.1); }
+    .score-btn[data-points="3"]{ filter: saturate(1.15); }
+
+    /* Distinct outline for color-blind readability */
+    .btn-red{ box-shadow: 0 10px 24px rgba(230,69,69,.22), 0 0 0 2px rgba(255,255,255,.03) inset; }
+    .btn-blue{ box-shadow: 0 10px 24px rgba(30,127,255,.22), 0 0 0 2px rgba(255,255,255,.03) inset; }
+
+    /* Ripple pulse on press */
+    .score-btn:active{
+      filter: brightness(1.02);
+      transform: translateY(1px) scale(.995);
+    }
+
+    /* Desktop / larger: compact quick pad height */
+    @media (min-width: 880px){
+      .pad-col{ grid-template-rows: repeat(3, minmax(60px, 10vh)); }
+    }
+
+    /* Landscape: two rows by three columns */
+    @media (orientation: landscape) and (max-height: 520px){
+      .pad-wrap{ grid-template-columns: 1fr; }
+      .pad-col{ grid-template-columns: repeat(3, 1fr); grid-template-rows: none; }
+    }
+
+    /* =========================
+       STANDARD CONTROLS (kept)
+    ========================== */
+    .section-title{margin-top:14px;margin-bottom:6px;font-size:13px;color:var(--muted);letter-spacing:.2px}
+
+    .grid{display:grid;gap:10px}
+    .grid-3{grid-template-columns:repeat(3,1fr)}
+    .grid-2{grid-template-columns:repeat(2,1fr)}
+
+    /* Gamjeom buttons */
+    .dual{display:flex;gap:10px;margin-top:10px}
+    .dual .btn-muted{flex:1; min-height:52px}
+
+    /* Replay buttons */
+    .replay-actions{
+      display:flex;gap:10px;margin-top:8px;
+    }
+    .replay-actions > * { flex: 1; min-height:52px; }
+
+    /* =========================
+       LOG AREA
+    ========================== */
+    .log {
+      margin-top:10px; font-size:12px; color:var(--muted);
+      max-height:140px; overflow:auto;
+      background:rgba(255,255,255,0.02);
+      padding:10px; border-radius:12px;
+      border:1px solid var(--border);
+      backdrop-filter: blur(6px);
+    }
+
+    /* =========================
+       IVR OVERLAY
+    ========================== */
+    .ivr-overlay{
+      position:fixed; inset:0; display:flex; align-items:center; justify-content:center;
+      background:rgba(0,0,0,.55); z-index:999;
+      padding: clamp(10px, 2vw, 16px);
+      transition: opacity .25s ease, visibility .25s ease, transform .25s ease;
+    }
+    .ivr-card{
+      width:min(720px,92vw);
+      background: linear-gradient(180deg,#0b1220,#071018);
+      padding:16px; border-radius:12px;
+      border:1px solid var(--border); box-shadow: var(--shadow-l);
+      transform: translateY(0);
+      animation: pop .18s ease-out;
+    }
+    @keyframes pop{
+      from{ transform: translateY(8px); opacity:.9; }
+      to{ transform: translateY(0); opacity:1; }
+    }
+
+    .ivr-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:10px}
+    .ivr-box{
+      height:58px;border-radius:10px;background:#071018;border:1px solid rgba(255,255,255,.05);
+      display:flex;align-items:center;justify-content:center;color:var(--muted);
+      transition: background .25s ease, color .25s ease, transform .15s ease, box-shadow .25s ease;
+    }
+    .ivr-box.on{
+      background:linear-gradient(180deg,#fff3d7,#ffd166);
+      color:#071018; border-color:#f0c06b; font-weight:800;
+      box-shadow: 0 10px 24px rgba(240,192,107,.25);
+      transform: translateY(-1px);
+    }
+    .footer-note{margin-top:10px;color:var(--muted);font-size:13px;text-align:center}
+
+    /* =========================
+       ACCESSIBILITY & MOTION
+    ========================== */
+    @media (prefers-reduced-motion: reduce){
+      *{ animation: none !important; transition: none !important; }
+    }
+
+    /* =========================
+       INTERACTION POLISH
+       (tracks mouse/touch for gradient highlight on buttons)
+    ========================== */
+    .score-btn{ --mx:50%; --my:50%; }
+    .score-btn:where(:hover,:focus-visible){
+      filter: brightness(1.03);
+    }
+
+    /* Safe-area guards */
+    .wrap { padding-left: calc( max(12px, var(--safe-l)) ); padding-right: calc( max(12px, var(--safe-r)) ); }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="card" role="main" aria-labelledby="title">
+      <header>
+        <h1 id="title">Referee Remote — Standalone</h1>
+      </header>
+
+      <!-- Status Row -->
+      <div class="status-row" aria-live="polite">
+        <div id="statusDot" class="status-dot" aria-hidden="true"></div>
+        <div class="status-text" id="statusText">Not connected</div>
+        <div style="flex:1"></div>
+        <div class="lights" aria-hidden="true">
+          <span class="muted small">Conn</span>
+          <div id="connLight" class="light" title="Connected"></div>
+          <span class="muted small">Act</span>
+          <div id="actLight" class="light" title="Activity"></div>
+        </div>
+      </div>
+
+      <!-- Connection form -->
+      <label for="serverUrl">Server URL (operator machine)</label>
+      <input id="serverUrl" type="text" inputmode="url" placeholder="e.g. 192.168.1.100:5000 or http://192.168.1.100:5000" autocomplete="url">
+
+      <label for="code">Machine code</label>
+      <input id="code" type="text" inputmode="text" placeholder="Enter code shown on operator" autocapitalize="characters">
+
+      <label for="pw">Match password</label>
+      <input id="pw" type="password" placeholder="Match password set by operator" autocomplete="current-password">
+
+      <label for="name">Device name</label>
+      <input id="name" type="text" placeholder="Referee 1 (optional)" autocomplete="nickname">
+
+      <div class="actions">
+        <button id="connectBtn" class="btn-primary big" style="flex:1">Connect</button>
+        <button id="disconnectBtn" class="btn-ghost big hidden" style="flex:1">Disconnect</button>
+      </div>
+
+      <div class="hint muted small" id="hint">
+        After connecting, press any scoring button once to test — this lights the operator’s activity indicator.
+      </div>
+
+      <!-- Controls (shown by JS) -->
+      <div id="controls" class="controls hidden" aria-hidden="true">
+
+        <!-- Quick Scoring Pad (sticky bottom, huge thumb targets) -->
+        <div class="quick-pad" aria-label="Quick scoring pad">
+          <div class="pad-wrap">
+            <!-- RED column -->
+            <div class="pad-col">
+              <button class="score-btn btn-red" data-color="red" data-points="3" aria-label="Red plus 3"><span>RED +3</span></button>
+              <button class="score-btn btn-red" data-color="red" data-points="2" aria-label="Red plus 2"><span>RED +2</span></button>
+              <button class="score-btn btn-red" data-color="red" data-points="1" aria-label="Red plus 1"><span>RED +1</span></button>
+            </div>
+            <!-- BLUE column -->
+            <div class="pad-col">
+              <button class="score-btn btn-blue" data-color="blue" data-points="3" aria-label="Blue plus 3"><span>BLUE +3</span></button>
+              <button class="score-btn btn-blue" data-color="blue" data-points="2" aria-label="Blue plus 2"><span>BLUE +2</span></button>
+              <button class="score-btn btn-blue" data-color="blue" data-points="1" aria-label="Blue plus 1"><span>BLUE +1</span></button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Standard Scoring (kept for familiarity / tablets) -->
+        <div class="section-title">Red — Scoring</div>
+        <div class="grid grid-3">
+          <button class="score-btn btn-red big" data-color="red" data-points="1"><span>+1</span></button>
+          <button class="score-btn btn-red big" data-color="red" data-points="2"><span>+2</span></button>
+          <button class="score-btn btn-red big" data-color="red" data-points="3"><span>+3</span></button>
+        </div>
+
+        <div class="section-title">Blue — Scoring</div>
+        <div class="grid grid-3">
+          <button class="score-btn btn-blue big" data-color="blue" data-points="1"><span>+1</span></button>
+          <button class="score-btn btn-blue big" data-color="blue" data-points="2"><span>+2</span></button>
+          <button class="score-btn btn-blue big" data-color="blue" data-points="3"><span>+3</span></button>
+        </div>
+
+        <div class="dual">
+          <button id="gamjeomRed" class="btn-muted big" aria-label="Gam-jeom to Red">Gam-jeom → Red</button>
+          <button id="gamjeomBlue" class="btn-muted big" aria-label="Gam-jeom to Blue">Gam-jeom → Blue</button>
+        </div>
+
+        <div class="section-title">Video Replay</div>
+        <div class="replay-actions">
+          <button id="acceptReplay" class="btn-yellow big" aria-label="Accept replay">Accept</button>
+          <button id="declineReplay" class="btn-ghost big" aria-label="Decline replay">Decline</button>
+        </div>
+
+        <div style="margin-top:12px;text-align:center">
+          <div class="muted small">Operator will show the replay overlay; press Accept/Decline to vote.</div>
+        </div>
+      </div>
+
+      <div class="log" id="log" aria-live="polite">log: ready</div>
+    </div>
+  </div>
+
+  <!-- IVR overlay (IDs preserved for JS) -->
+  <div id="ivrOverlay" class="ivr-overlay hidden" aria-hidden="true">
+    <div class="ivr-card" role="dialog" aria-modal="true" aria-labelledby="ivrTitle">
+      <div style="display:flex;justify-content:space-between;align-items:center;gap:10px">
+        <strong id="ivrTitle">Video Replay</strong>
+        <button id="ivrClose" class="btn-ghost">Close</button>
+      </div>
+      <div id="ivrBoxes" class="ivr-grid"></div>
+      <div id="ivrMsg" class="footer-note">Waiting for votes...</div>
+    </div>
+  </div>
+
+  <!-- Your original JS (UNMODIFIED) -->
+  <script>
+  /*
+  Standalone referee client (in-page)
+  Matches server event names:
+   OUT -> ref_join, ref_activity, ref_score, ref_gamjeom, ref_accept_replay, ref_decline_replay
+   IN  <- ref_join_result, remote_status, state, ivr_overlay, ivr_votes, ivr_result, proceed_main, force_setup, match_over
+  */
+
+  (function(){
+    // DOM
+    const serverUrlEl = document.getElementById('serverUrl');
+    const codeEl = document.getElementById('code');
+    const pwEl = document.getElementById('pw');
+    const nameEl = document.getElementById('name');
+    const connectBtn = document.getElementById('connectBtn');
+    const disconnectBtn = document.getElementById('disconnectBtn');
+    const statusText = document.getElementById('statusText');
+    const statusDot = document.getElementById('statusDot');
+    const connLight = document.getElementById('connLight');
+    const actLight = document.getElementById('actLight');
+    const controls = document.getElementById('controls');
+    const hint = document.getElementById('hint');
+    const logEl = document.getElementById('log');
+
+    const ivrOverlay = document.getElementById('ivrOverlay');
+    const ivrBoxes = document.getElementById('ivrBoxes');
+    const ivrTitle = document.getElementById('ivrTitle');
+    const ivrMsg = document.getElementById('ivrMsg');
+    const ivrClose = document.getElementById('ivrClose');
+
+    const scoreButtons = Array.from(document.querySelectorAll('.score-btn'));
+    const gamjeomRed = document.getElementById('gamjeomRed');
+    const gamjeomBlue = document.getElementById('gamjeomBlue');
+    const acceptReplayBtn = document.getElementById('acceptReplay');
+    const declineReplayBtn = document.getElementById('declineReplay');
+
+    // state
+    let socket = null;
+    let joined = false;
+    let matchRunning = false;
+
+    // helpers
+    function log(...args){ try{ logEl.textContent = 'log: ' + args.join(' '); }catch(e){} console.log(...args); }
+    function showStatus(text, ok=true){ statusText.textContent = text; statusDot.style.background = ok ? '#22c55e' : '#ff6b6b'; }
+    function setConnLight(on){ connLight.classList.toggle('connected', !!on); }
+    function setActLight(on){ actLight.classList.toggle('activity', !!on); }
+    function showControls(on){ controls.classList.toggle('hidden', !on); disconnectBtn.classList.toggle('hidden', !on); connectBtn.classList.toggle('hidden', on); }
+    function flash(el){ if(!el) return; el.style.transform='scale(.98)'; setTimeout(()=>el.style.transform=''); }
+
+    function normalizeUrl(u){
+      if(!u) return null;
+      u = u.trim();
+      if(!/^https?:\/\//i.test(u)) {
+        u = 'http://' + u;
+      }
+      try{ new URL(u); return u; } catch(e){ return null; }
+    }
+
+    function curServer(){ return normalizeUrl(serverUrlEl.value || localStorage.getItem('tkd_server') || ''); }
+    function curCode(){ return (codeEl.value || localStorage.getItem('tkd_code') || '').toString().trim(); }
+    function curPW(){ return (pwEl.value || localStorage.getItem('tkd_pw') || '').toString().trim(); }
+    function curName(){ return (nameEl.value || localStorage.getItem('tkd_name') || '').toString().trim() || 'Referee'; }
+
+    // attempt to prefill stored values
+    try {
+      serverUrlEl.value = localStorage.getItem('tkd_server') || '';
+      codeEl.value = localStorage.getItem('tkd_code') || '';
+      pwEl.value = localStorage.getItem('tkd_pw') || '';
+      nameEl.value = localStorage.getItem('tkd_name') || '';
+    } catch(e){}
+
+    // initialize socket and handlers
+    function initSocket(server){
+      if(socket && socket.connected) return socket;
+      const ioOpts = { transports: ['websocket','polling'], reconnectionAttempts: 15, reconnectionDelay: 800 };
+      log('connecting to', server);
+      socket = io(server, ioOpts);
+
+      socket.on('connect', ()=>{ log('[socket] connected'); showStatus('Connected to operator server — joining...'); });
+      socket.on('connect_error', (err)=>{ log('[socket] connect_error', err && err.message ? err.message : err); showStatus('Connect failed', false); });
+      socket.on('disconnect', (reason)=>{ log('[socket] disconnected', reason); joined=false; matchRunning=false; showControls(false); setConnLight(false); setActLight(false); showStatus('Disconnected', false); });
+
+      // auto-rejoin if we were previously joined
+      socket.on('reconnect', (n)=>{ log('[socket] reconnect', n); if(curCode() && curPW() && curName()) { log('re-joining after reconnect'); socket.emit('ref_join', { code: curCode(), password: curPW(), name: curName() }); } });
+
+      // server responses
+      socket.on('ref_join_result', (res)=> {
+        log('[server] ref_join_result', res);
+        if(res && res.ok){
+          joined = true;
+          showStatus('Joined: ' + (res.name || curName()), true);
+          setConnLight(true);
+          showControls(true);
+          hint.textContent = 'Press any scoring button once to TEST (operator will light activity).';
+          // persist
+          try{ localStorage.setItem('tkd_server', server); localStorage.setItem('tkd_code', curCode()); localStorage.setItem('tkd_pw', curPW()); localStorage.setItem('tkd_name', curName()); }catch(e){}
+        } else {
+          joined = false;
+          showControls(false);
+          setConnLight(false); setActLight(false);
+          showStatus('Join failed: ' + (res && res.error ? res.error : 'Unknown'), false);
+        }
+      });
+
+      // server sends remote_status (room members), find our entry to set tested/activity lights
+      socket.on('remote_status', (payload) => {
+        // payload.remotes: [{slot,name,connected,active,tested}, ...]
+        try {
+          log('[server] remote_status', payload);
+          const remotes = payload && payload.remotes;
+          if(!Array.isArray(remotes)) return;
+          const myName = curName().toLowerCase();
+          let found = null;
+          for(const r of remotes){
+            if(!r || !r.name) continue;
+            if(r.name.toLowerCase() === myName){ found = r; break; }
+          }
+          if(!found){
+            for(const r of remotes){
+              if(!r || !r.name) continue;
+              if(r.name.toLowerCase().startsWith(myName.slice(0,4))){ found = r; break; }
+            }
+          }
+          if(found){
+            setConnLight(!!found.connected);
+            setActLight(!!found.active);
+            if(found.tested){
+              hint.textContent = 'Test complete — wait for operator to proceed to main.';
+            }
+          }
+        } catch(e){ console.warn(e); }
+      });
+
+      socket.on('state', ({ state })=>{
+        try {
+          log('[server] state', state);
+          const s = state && state.status;
+          matchRunning = (s === 'running');
+          if(matchRunning) showStatus('Match running — you can score', true);
+          else if(s === 'break') showStatus('Break — scoring paused', true);
+          else showStatus('Waiting — ' + (s || ''), true);
+        } catch(e){}
+      });
+
+      socket.on('proceed_main', ()=>{
+        matchRunning = true;
+        showStatus('Operator proceeded to main — match running', true);
+      });
+
+      socket.on('force_setup', ({ reason })=>{
+        alert('Operator returned to setup: ' + (reason || ''));
+        joined=false; matchRunning=false; showControls(false); setConnLight(false); setActLight(false);
+        showStatus('Operator requested setup', false);
+      });
+
+      // IVR: overlay & votes
+      socket.on('ivr_overlay', ({ color, refs })=>{
+        log('[server] ivr_overlay', color, refs);
+        ivrBoxes.innerHTML = '';
+        ivrTitle.textContent = 'Video Replay — ' + (color ? color.toUpperCase() : '');
+        const n = Math.max(1, (refs || 1));
+        for(let i=0;i<n;i++){
+          const d = document.createElement('div'); d.className='ivr-box'; d.id='ivr-box-'+(i+1); d.textContent = 'Ref ' + (i+1);
+          ivrBoxes.appendChild(d);
+        }
+        ivrMsg.textContent = 'Press Accept/Decline to vote.';
+        ivrOverlay.classList.remove('hidden'); ivrOverlay.setAttribute('aria-hidden','false');
+      });
+
+      socket.on('ivr_votes', ({ count })=>{
+        for(let i=1;i<=12;i++){
+          const b = document.getElementById('ivr-box-'+i); if(!b) continue; b.classList.toggle('on', i <= (count || 0));
+        }
+      });
+
+      socket.on('ivr_result', ({ accepted, color, cancelled })=>{
+        log('[server] ivr_result', accepted, color, cancelled);
+        if(cancelled) ivrMsg.textContent = 'Replay cancelled by operator';
+        else ivrMsg.textContent = accepted ? 'Replay accepted' : 'Replay rejected';
+        setTimeout(()=>{ ivrOverlay.classList.add('hidden'); ivrOverlay.setAttribute('aria-hidden','true'); }, 800);
+      });
+
+      socket.on('match_over', ({ winner })=>{
+        showStatus('Match over — winner: ' + (winner || 'N/A'), true);
+      });
+
+      return socket;
+    } // initSocket
+
+    // UI actions
+    connectBtn.addEventListener('click', ()=>{
+      const server = curServer();
+      if(!server){ alert('Enter Server URL (operator IP + port). Example: 192.168.1.100:5000'); serverUrlEl.focus(); return; }
+      const code = curCode(); const pw = curPW(); const name = curName();
+      if(!code){ alert('Enter Machine Code'); codeEl.focus(); return; }
+      if(!pw){ alert('Enter Match Password'); pwEl.focus(); return; }
+      if(!name){ nameEl.focus(); }
+
+      const s = initSocket(server);
+      showStatus('Connecting to server...', true);
+      // small delay to ensure socket has started attempt; emit join anyway once socket exists
+      try { s.emit('ref_join', { code, password: pw, name }); log('emit ref_join', { code, name }); } catch(e){ console.warn(e); }
+    });
+
+    disconnectBtn.addEventListener('click', ()=>{
+      try { if(socket) socket.disconnect(); } catch(e){}
+      joined=false; matchRunning=false; showControls(false); setConnLight(false); setActLight(false);
+      showStatus('Disconnected', false);
+    });
+
+    // scoring: activity -> score (if running) or test
+    scoreButtons.forEach(btn=>{
+      btn.addEventListener('click', (e)=>{
+        const rect = e.currentTarget.getBoundingClientRect();
+        e.currentTarget.style.setProperty('--mx', ((e.clientX - rect.left)/rect.width*100)+'%');
+        e.currentTarget.style.setProperty('--my', ((e.clientY - rect.top)/rect.height*100)+'%');
+
+        const color = btn.getAttribute('data-color');
+        const points = parseInt(btn.getAttribute('data-points')||'1',10);
+        if(!socket || !socket.connected){ alert('Not connected to operator'); return; }
+        // 1) activity to mark tested
+        socket.emit('ref_activity', { code: curCode(), password: curPW() });
+        // 2) actual scoring only when match running
+        if(matchRunning){
+          socket.emit('ref_score', { code: curCode(), password: curPW(), color, points });
+          showStatus(`Sent +${points} to ${color}`, true);
+        } else {
+          showStatus('Test signal sent — wait for operator to start match', true);
+        }
+      });
+    });
+
+    // gamjeom
+    gamjeomRed.addEventListener('click', ()=>{
+      if(!socket || !socket.connected){ alert('Not connected'); return; }
+      socket.emit('ref_activity', { code: curCode(), password: curPW() });
+      socket.emit('ref_gamjeom', { code: curCode(), password: curPW(), color: 'red' });
+      showStatus('Gam-jeom (red) signalled', true);
+    });
+    gamjeomBlue.addEventListener('click', ()=>{
+      if(!socket || !socket.connected){ alert('Not connected'); return; }
+      socket.emit('ref_activity', { code: curCode(), password: curPW() });
+      socket.emit('ref_gamjeom', { code: curCode(), password: curPW(), color: 'blue' });
+      showStatus('Gam-jeom (blue) signalled', true);
+    });
+
+    // replay vote
+    acceptReplayBtn.addEventListener('click', ()=>{
+      if(!socket || !socket.connected){ alert('Not connected'); return; }
+      socket.emit('ref_accept_replay', { code: curCode(), password: curPW() });
+      showStatus('Replay ACCEPT sent', true);
+    });
+    declineReplayBtn.addEventListener('click', ()=>{
+      if(!socket || !socket.connected){ alert('Not connected'); return; }
+      socket.emit('ref_decline_replay', { code: curCode(), password: curPW() });
+      showStatus('Replay REJECT sent', false);
+    });
+
+    ivrClose.addEventListener('click', ()=>{ ivrOverlay.classList.add('hidden'); ivrOverlay.setAttribute('aria-hidden','true'); });
+
+    // small autosave convenience
+    try {
+      serverUrlEl.addEventListener('change', ()=>{ localStorage.setItem('tkd_server', serverUrlEl.value.trim()); });
+      codeEl.addEventListener('change', ()=>{ localStorage.setItem('tkd_code', codeEl.value.trim()); });
+      pwEl.addEventListener('change', ()=>{ localStorage.setItem('tkd_pw', pwEl.value.trim()); });
+      nameEl.addEventListener('change', ()=>{ localStorage.setItem('tkd_name', nameEl.value.trim()); });
+    } catch(e){}
+
+  })(); // IIFE
+  </script>
+</body>
+</html>
