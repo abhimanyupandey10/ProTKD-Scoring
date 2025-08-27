@@ -15,35 +15,47 @@ jobs:
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
 
       - name: Set up Python
         uses: actions/setup-python@v4
         with:
           python-version: '3.12'
 
+      - name: Cache pip
+        uses: actions/cache@v3
+        with:
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-pip-${{ hashFiles('**/requirements.txt') }}
+          restore-keys: |
+            ${{ runner.os }}-pip-
+
       - name: Install dependencies
-        run: pip install --upgrade pip && pip install -r requirements.txt pyinstaller
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt pyinstaller
+
+      - name: Clean previous build/dist
+        run: |
+          rm -rf build dist *.spec || true
 
       # Windows build
       - name: Build with PyInstaller (Windows)
         if: matrix.os == 'windows-latest'
         run: |
-          pyinstaller --onefile --noconsole ^
-            --icon=logo.ico ^
-            --add-data "templates;templates" ^
-            --add-data "static;static" ^
-            app.py
+          pyinstaller --onefile --noconsole --icon=logo.ico ^
+          --add-data "templates;templates" ^
+          --add-data "static;static" ^
+          app.py
 
       # Linux build
       - name: Build with PyInstaller (Linux)
         if: matrix.os == 'ubuntu-latest'
         run: |
           pyinstaller --onefile --noconsole \
-            --icon=logo.png \
-            --add-data "templates:templates" \
-            --add-data "static:static" \
-            app.py
+          --add-data "templates:templates" \
+          --add-data "static:static" \
+          app.py
 
       - name: List build output
         run: ls -R dist
@@ -51,6 +63,6 @@ jobs:
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
-          name: ProTKD-${{ matrix.os }}
+          name: ProTKD-${{ matrix.os }}-${{ github.sha }}
           path: dist/*
           include-hidden-files: true
