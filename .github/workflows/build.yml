@@ -1,4 +1,4 @@
-name: Build Apps
+name: Build Windows App (ProTKD)
 
 on:
   push:
@@ -7,84 +7,68 @@ on:
   workflow_dispatch:
 
 jobs:
-  build:
-    runs-on: ${{ matrix.os }}
-    strategy:
-      matrix:
-        os: [ubuntu-latest, windows-latest, macos-latest]
+  build-windows:
+    runs-on: windows-latest
+    timeout-minutes: 60
 
     steps:
-      # Checkout repo
-      - name: Checkout code
+      - name: Checkout repository
         uses: actions/checkout@v4
 
-      # Set up Python
-      - name: Set up Python
+      - name: Show runner info
+        run: |
+          Write-Host "Running on: $($env:RUNNER_OS)"
+          python --version
+          pip --version
+        shell: pwsh
+
+      - name: Setup Python 3.12
         uses: actions/setup-python@v4
         with:
           python-version: '3.12'
 
-      # Cache pip
-      - name: Cache pip
-        uses: actions/cache@v3
-        with:
-          path: ~/.cache/pip
-          key: ${{ runner.os }}-pip-${{ hashFiles('**/requirements.txt') }}
-          restore-keys: |
-            ${{ runner.os }}-pip-
+      - name: Upgrade pip, setuptools, wheel
+        run: python -m pip install --upgrade pip setuptools wheel
+        shell: pwsh
 
-      # Install dependencies
-      - name: Install dependencies
+      - name: Install build deps (pyinstaller) and app deps
+        # installing pyinstaller first avoids some long resolution issues
         run: |
           python -m pip install --upgrade pip
-          pip install -r requirements.txt pyinstaller
-
-      # Clean previous builds
-      - name: Clean previous builds (Linux/macOS)
-        if: matrix.os != 'windows-latest'
-        run: rm -rf build dist *.spec || true
+          python -m pip install pyinstaller==6.15.0 pyinstaller-hooks-contrib==2025.8
+          if (Test-Path requirements.txt) {
+            python -m pip install -r requirements.txt
+          } else {
+            Write-Host "requirements.txt not found — skipping pip install -r requirements.txt"
+          }
+        shell: pwsh
 
       - name: Clean previous builds (Windows)
-        if: matrix.os == 'windows-latest'
-        run: powershell "Remove-Item -Recurse -Force build, dist, *.spec -ErrorAction SilentlyContinue"
-
-      # Build on Windows
-      - name: Build with PyInstaller (Windows)
-        if: matrix.os == 'windows-latest'
         run: |
-          pyinstaller --onefile --noconsole --name ProTKD ^
-            --icon=logo.ico ^
-            --add-data "templates;templates" ^
-            --add-data "static;static" ^
-            app.py
+          if (Test-Path build) { Remove-Item -Recurse -Force build }
+          if (Test-Path dist) { Remove-Item -Recurse -Force dist }
+          if (Test-Path *.spec) { Remove-Item -Force *.spec }
+        shell: pwsh
 
-      # Build on Linux
-      - name: Build with PyInstaller (Linux)
-        if: matrix.os == 'ubuntu-latest'
+      - name: Build EXE with PyInstaller (Windows)
+        # Build: uses logo.ico if it exists; uses ; as add-data separator
         run: |
-          pyinstaller --onefile --noconsole --name ProTKD \
-            --add-data "templates:templates" \
-            --add-data "static:static" \
-            app.py
+          $addData = '--add-data "templates;templates" --add-data "static;static"'
+          $iconArg = ''
+          if (Test-Path "logo.ico") { $iconArg = '--icon=logo.ico' }
+          $cmd = "pyinstaller --onefile --noconsole --name ProTKD $iconArg $addData app.py"
+          Write-Host "Running: $cmd"
+          Invoke-Expression $cmd
+        shell: pwsh
+        env:
+          PYTHONUNBUFFERED: '1'
 
-      # Build on macOS
-      - name: Build with PyInstaller (macOS)
-        if: matrix.os == 'macos-latest'
-        run: |
-          pyinstaller --onefile --noconsole --name ProTKD \
-            --icon=logo.icns \
-            --add-data "templates:templates" \
-            --add-data "static:static" \
-            app.py
+      - name: List produced files
+        run: Get-ChildItem -Recurse dist | Format-List
+        shell: pwsh
 
-      # List output
-      - name: List build output
-        run: ls -R dist
-
-      # Upload artifacts
-      - name: Upload artifact
+      - name: Upload artifact (Windows EXE)
         uses: actions/upload-artifact@v4
         with:
-          name: ProTKD-${{ matrix.os }}-${{ github.sha }}
+          name: ProTKD-windows-${{ github.sha }}
           path: dist/*
-          include-hidden-files: true
