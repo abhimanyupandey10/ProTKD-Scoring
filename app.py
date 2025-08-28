@@ -750,8 +750,17 @@ socketio.start_background_task(timer_loop)
 
 # ================== Demo machine on boot (helpful while developing) ==================
 if __name__ == "__main__":
+    import threading, webbrowser, time
+
     if not machines:
         demo = gen_machine_code()
         machines[demo] = new_machine_state()
         print(f"[demo] Machine ready. Code: {demo}")
-    socketio.run(app, host=APP_HOST, port=APP_PORT, debug=True)
+
+    def open_browser():
+        # Give server a moment to start before opening browser
+        time.sleep(1.5)
+        webbrowser.open(f"http://127.0.0.1:{APP_PORT}/operator/login")
+
+    threading.Thread(target=open_browser, daemon=True).start()
+    socketio.run(app, host=APP_HOST, port=APP_PORT, debug=False)
