@@ -41,12 +41,20 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements.txt pyinstaller pyinstaller-hooks-contrib
 
-      # 5) Clean previous builds
-      - name: Clean previous builds
-        run: |
-          rm -rf build dist *.spec || true
+      # 5) Clean previous builds (OS-specific)
+      - name: Clean previous builds (Linux/macOS)
+        if: runner.os != 'Windows'
+        run: rm -rf build dist *.spec || true
 
-      # 6a) Build on Windows (uses ';' for --add-data)
+      - name: Clean previous builds (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          if (Test-Path build) { Remove-Item -Recurse -Force build }
+          if (Test-Path dist) { Remove-Item -Recurse -Force dist }
+          if (Test-Path *.spec) { Remove-Item -Force *.spec }
+
+      # 6a) Build on Windows (use ';' separator for add-data)
       - name: Build with PyInstaller (Windows)
         if: matrix.os == 'windows-latest'
         shell: pwsh
@@ -60,13 +68,12 @@ jobs:
             --add-data "static;static" `
             app.py
 
-      # 6b) Build on Linux (uses ':' for --add-data)
+      # 6b) Build on Linux
       - name: Build with PyInstaller (Linux)
         if: matrix.os == 'ubuntu-latest'
         shell: bash
         run: |
           ICON_ARG=""
-          # (Optional) If you have a Linux-specific icon, set ICON_ARG="--icon=logo.png"
           pyinstaller --onefile --noconsole \
             $ICON_ARG \
             --name ProTKD \
@@ -74,7 +81,7 @@ jobs:
             --add-data "static:static" \
             app.py
 
-      # 6c) Build on macOS (uses ':' for --add-data)
+      # 6c) Build on macOS
       - name: Build with PyInstaller (macOS)
         if: matrix.os == 'macos-latest'
         shell: bash
