@@ -26,10 +26,21 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements.txt
           pip install pyinstaller
+        shell: cmd
 
       - name: Build EXE with PyInstaller
         run: |
-          pyinstaller --onefile app.py
+          REM Build a single EXE including templates and static folders.
+          REM Note: --add-data uses semicolon on Windows: "src;dest"
+          pyinstaller --noconfirm --onefile ^
+            --name ProTKD ^
+            --add-data "templates;templates" ^
+            --add-data "static;static" ^
+            --hidden-import=flask_socketio ^
+            --hidden-import=socketio ^
+            --hidden-import=engineio ^
+            --hidden-import=jinja2 ^
+            app.py
         shell: cmd
 
       - name: Upload EXE to GitHub Release
@@ -39,6 +50,6 @@ jobs:
           name: "ProTKD Windows Build ${{ github.run_number }}"
           draft: false
           prerelease: false
-          files: dist/app.exe
+          files: dist/ProTKD.exe
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

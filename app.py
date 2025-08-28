@@ -6,10 +6,12 @@
 # - mobile-friendly socket settings
 
 from __future__ import annotations
+import os
+import sys
+import time, math, random, string, secrets, copy
 from flask import Flask, render_template, request, redirect, url_for, session
 from flask_socketio import SocketIO, emit, join_room, leave_room
 from werkzeug.middleware.proxy_fix import ProxyFix
-import time, math, random, string, secrets, copy
 
 # ================== Config ==================
 APP_HOST = "0.0.0.0"
@@ -18,7 +20,7 @@ APP_PORT = 5000
 # Socket.IO tuning (mobile-friendly)
 SOCKET_KW = dict(
     cors_allowed_origins="*",
-    async_mode=None,
+    async_mode="threading",   # ✅ FIXED: force threading for exe
     ping_interval=20,
     ping_timeout=30,
     max_http_buffer_size=1_000_000
@@ -33,7 +35,18 @@ SCORING_WINDOW = 1.3
 SERVER_SIDE_MAJORITY = True
 
 # ================== App init ==================
-app = Flask(__name__, static_url_path="/static", template_folder="templates", static_folder="static")
+# ✅ FIXED: handle templates/static when frozen into exe
+if getattr(sys, "frozen", False) and hasattr(sys, "_MEIPASS"):
+    BASE_DIR = sys._MEIPASS
+else:
+    BASE_DIR = os.path.abspath(os.path.dirname(__file__))
+
+app = Flask(
+    __name__,
+    static_url_path="/static",
+    template_folder=os.path.join(BASE_DIR, "templates"),
+    static_folder=os.path.join(BASE_DIR, "static")
+)
 app.wsgi_app = ProxyFix(app.wsgi_app)
 app.config["SECRET_KEY"] = secrets.token_hex(16)
 socketio = SocketIO(app, **SOCKET_KW)
@@ -112,7 +125,6 @@ def new_machine_state(
         "history": [],            # undo stack
         "last_timer_emit_mono": 0.0
     }
-
 # ================== Serialization helpers ==================
 def safe_state(m: dict) -> dict:
     """Return trimmed copy of the state for sending to clients."""
