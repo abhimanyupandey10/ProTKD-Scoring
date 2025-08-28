@@ -1,40 +1,67 @@
-name: Build Windows Executable
+# .github/workflows/build.yml
+name: Build Apps
 
 on:
   push:
-    branches:
-      - main
-  pull_request:
+    tags:
+      - "v*.*.*"   # Example: push a tag like v1.0.0
+  workflow_dispatch:
 
 jobs:
-  build-windows:
-    runs-on: windows-latest
+  build:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
 
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
 
       - name: Set up Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v4
         with:
           python-version: '3.12'
 
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install -r requirements.txt
-          pip install pyinstaller
+          pip install -r requirements.txt pyinstaller pyinstaller-hooks-contrib
 
-      - name: Build executable with PyInstaller
-        run: |
-          pyinstaller --onefile --noconsole `
-            --name ProTKD `
-            --add-data "templates;templates" `
-            --add-data "static;static" `
-            app.py
+      - name: Clean previous builds
+        run: rm -rf build dist *.spec || true
 
-      - name: Upload artifact
+      - name: Build (Windows)
+        if: matrix.os == 'windows-latest'
+        run: pyinstaller --onefile --noconsole --name ProTKD --add-data "templates;templates" --add-data "static;static" app.py
+
+      - name: Build (Linux)
+        if: matrix.os == 'ubuntu-latest'
+        run: pyinstaller --onefile --noconsole --name ProTKD --add-data "templates:templates" --add-data "static:static" app.py
+
+      - name: Build (macOS)
+        if: matrix.os == 'macos-latest'
+        run: pyinstaller --onefile --noconsole --name ProTKD --add-data "templates:templates" --add-data "static:static" app.py
+
+      - name: Upload binaries as artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: ProTKD-Windows
-          path: dist/ProTKD.exe
+          name: ProTKD-${{ matrix.os }}
+          path: dist/*
+
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download all build artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: ./dist
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: ./dist/**/*
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
